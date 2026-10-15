@@ -10,10 +10,22 @@ Custom Integration, die Laufbänder und Walking Pads per Bluetooth ausliest und 
 
 ## Installation
 
-### HACS
+### HACS (One-Click)
 
-1. HACS → ⋮ → *Benutzerdefinierte Repositories* → `https://github.com/dwyschka/treadmill_hacs`, Typ *Integration*
-2. „Treadmill (FTMS / FitShow)“ installieren und Home Assistant neu starten
+[![In HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dwyschka&repository=treadmill_hacs&category=integration)
+
+1. Button klicken → Home-Assistant-Instanz bestätigen → in HACS **Herunterladen**
+2. Home Assistant neu starten
+3. Integration einrichten:
+
+   [![Integration einrichten](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=treadmill_ble)
+
+<details>
+<summary>Ohne Button</summary>
+
+HACS → ⋮ → *Benutzerdefinierte Repositories* → `https://github.com/dwyschka/treadmill_hacs`, Typ *Integration*,
+dann „Treadmill (FTMS / FitShow)“ herunterladen und Home Assistant neu starten.
+</details>
 
 ### Manuell
 
