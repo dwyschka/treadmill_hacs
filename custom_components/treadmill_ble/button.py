@@ -1,4 +1,4 @@
-"""Buttons: Start, Pause, Stopp."""
+"""Buttons: start, pause, stop."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TreadmillConfigEntry
+from .const import DOMAIN
 from .device import TreadmillDevice, TreadmillError
 from .entity import TreadmillEntity
 
@@ -48,4 +49,8 @@ class TreadmillButton(TreadmillEntity, ButtonEntity):
         try:
             await self.entity_description.press_fn(self._device)
         except TreadmillError as err:
-            raise HomeAssistantError(str(err)) from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key=err.translation_key,
+                translation_placeholders=err.placeholders,
+            ) from err

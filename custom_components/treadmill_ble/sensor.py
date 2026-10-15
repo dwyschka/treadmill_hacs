@@ -1,4 +1,4 @@
-"""Sensoren: Geschwindigkeit, Distanz, Zeit, Schritte, Status …"""
+"""Sensors: speed, distance, time, steps, status …"""
 
 from __future__ import annotations
 

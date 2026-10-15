@@ -109,5 +109,28 @@
         "name": "Bluetooth connection"
       }
     }
+  },
+  "exceptions": {
+    "not_connected": {
+      "message": "Treadmill is not connected or cannot be controlled"
+    },
+    "not_running": {
+      "message": "The treadmill is not running. Start it before changing the speed"
+    },
+    "no_acknowledgement": {
+      "message": "The treadmill did not acknowledge the command"
+    },
+    "no_response": {
+      "message": "The treadmill did not respond"
+    },
+    "bluetooth_error": {
+      "message": "Bluetooth error: {error}"
+    },
+    "ftms_rejected": {
+      "message": "The treadmill rejected the command: {result}"
+    },
+    "disconnected": {
+      "message": "The connection to the treadmill was lost"
+    }
   }
 }

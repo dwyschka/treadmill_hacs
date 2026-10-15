@@ -1,5 +1,5 @@
 pytest-homeassistant-custom-component
-# Abhängigkeiten der HA-Bluetooth-Komponente (nicht in pytest-homeassistant-custom-component enthalten)
+# Requirements of the HA bluetooth component (not included in pytest-homeassistant-custom-component)
 bleak
 bleak-retry-connector
 bluetooth-adapters

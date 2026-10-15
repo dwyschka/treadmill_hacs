@@ -1,91 +1,108 @@
-# Treadmill (FTMS / FitShow) für Home Assistant
+# Treadmill (FTMS / FitShow) for Home Assistant
 
-Custom Integration, die Laufbänder und Walking Pads per Bluetooth ausliest und steuert.
+Custom integration that reads and controls treadmills and walking pads over Bluetooth.
 
-- **FTMS** (Bluetooth Fitness Machine Service): Geschwindigkeit, Distanz, Zeit, Steigung, Kalorien, Puls
-- **FitShow** (Laufbänder mit Bluetooth-Namen `TF-…`): Start / Pause / Stopp, Zielgeschwindigkeit und
-  **echte Schrittzahl** – diese Geräte verweigern die Steuerung per FTMS meist (`Control Not Permitted`)
-- Läuft über den Bluetooth-Stack von Home Assistant: eingebauter Adapter oder ESPHome Bluetooth Proxy
-  (mit `active: true`)
+- **FTMS** (Bluetooth Fitness Machine Service): speed, distance, time, incline, calories, heart rate
+- **FitShow** (treadmills with Bluetooth names like `TF…`): start / pause / stop, target speed and the
+  **real step count** – these devices usually refuse control via FTMS (`Control Not Permitted`)
+- Uses Home Assistant's Bluetooth stack: a local adapter or an ESPHome Bluetooth proxy with
+  **active connections** enabled
 
 ## Installation
 
-### HACS (One-Click)
+### HACS (one click)
 
-[![In HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dwyschka&repository=treadmill_hacs&category=integration)
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dwyschka&repository=treadmill_hacs&category=integration)
 
-1. Button klicken → Home-Assistant-Instanz bestätigen → in HACS **Herunterladen**
-2. Home Assistant neu starten
-3. Integration einrichten:
+1. Click the button → confirm your Home Assistant instance → **Download** in HACS
+2. Restart Home Assistant
+3. Set up the integration:
 
-   [![Integration einrichten](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=treadmill_ble)
+   [![Set up integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=treadmill_ble)
 
 <details>
-<summary>Ohne Button</summary>
+<summary>Without the button</summary>
 
-HACS → ⋮ → *Benutzerdefinierte Repositories* → `https://github.com/dwyschka/treadmill_hacs`, Typ *Integration*,
-dann „Treadmill (FTMS / FitShow)“ herunterladen und Home Assistant neu starten.
+HACS → ⋮ → *Custom repositories* → `https://github.com/dwyschka/treadmill_hacs`, type *Integration*,
+then download "Treadmill (FTMS / FitShow)" and restart Home Assistant.
 </details>
 
-### Manuell
+### Manual
 
-Ordner `custom_components/treadmill_ble` nach `<config>/custom_components/` kopieren und Home Assistant neu starten.
+Copy `custom_components/treadmill_ble` to `<config>/custom_components/` and restart Home Assistant.
 
-## Einrichtung
+## Setup
 
-Laufband einschalten – es erscheint unter *Einstellungen → Geräte & Dienste* als gefundenes Gerät.
-Alternativ: *Integration hinzufügen → Treadmill (FTMS / FitShow)* und das Gerät aus der Liste wählen.
+Switch the treadmill on – it shows up under *Settings → Devices & services* as a discovered device.
+Alternatively use *Add integration → Treadmill (FTMS / FitShow)* and pick the device from the list.
 
-Automatisch vorgeschlagen werden alle Geräte mit **FTMS** sowie FitShow-Geräte (`TF…`, `SP-TM…`).
-Wird dein Gerät nicht erkannt, zeigt *Integration hinzufügen* zusätzlich alle anderen Bluetooth-Geräte
-mit Namen in Reichweite – dort kannst du es manuell auswählen.
+Discovered automatically are all devices advertising **FTMS** as well as FitShow devices (`TF-…`,
+`TF0…`–`TF9…`, `SP-TM…`). If yours is not recognized, *Add integration* also lists every other named
+Bluetooth device in range, so you can pick it manually. Use **↻ Search again** to reload the list.
 
-**Wird gar nichts gefunden?**
-- Laufband darf nicht mit einer anderen App verbunden sein (Hersteller-App, Web-App im Browser) – solange es
-  verbunden ist, sendet es kein Advertising.
-- Unter *Einstellungen → Geräte & Dienste → Bluetooth → Advertisement-Monitor* prüfen, ob HA das Gerät sieht.
-- ESPHome-Proxy: `bluetooth_proxy: active: true` und `esp32_ble_tracker: scan_parameters: active: true`,
-  sonst kommt der Gerätename nicht an.
+### Nothing found?
 
-## Entitäten
+- The treadmill must not be connected to another app (vendor app, web app in a browser) – while
+  connected it stops advertising.
+- Check *Settings → Devices & services → Bluetooth → Advertisement monitor* to see whether Home
+  Assistant receives the device and through which source.
+- Entries marked **"not connectable"** are only heard by a passive scanner. Home Assistant needs a
+  scanner that supports **active connections** within range of the treadmill:
+  - ESPHome Bluetooth proxy with
+    ```yaml
+    esp32_ble_tracker:
+      scan_parameters:
+        active: true
+    bluetooth_proxy:
+      active: true
+    ```
+  - or a local Bluetooth adapter on the Home Assistant host.
+  - Passive-only scanners (e.g. Shelly devices, TECHO5 Echo firmware) can't be used for connecting.
 
-| Typ    | Entität | Hinweis |
-|--------|---------|---------|
-| Sensor | Geschwindigkeit, Distanz, Trainingszeit, Steigung, Kalorien, Herzfrequenz, Schrittfrequenz | Ø-Geschwindigkeit standardmäßig deaktiviert |
-| Sensor | Schritte | Attribut `source`: `treadmill` (vom Laufband), `cadence` (aus Schrittfrequenz), `estimated` (Distanz ÷ Schrittlänge) |
+## Entities
+
+| Type   | Entity | Notes |
+|--------|--------|-------|
+| Sensor | Speed, distance, elapsed time, incline, calories, heart rate, cadence | Average speed is disabled by default |
+| Sensor | Steps | Attribute `source`: `treadmill` (reported by the treadmill), `cadence` (from cadence sensor), `estimated` (distance ÷ stride length) |
 | Sensor | Status | `idle`, `starting`, `running`, `paused`, `stopped`, `safety_key`, `error`, `calibrating` |
-| Button | Start, Pause, Stopp | |
-| Number | Zielgeschwindigkeit | Bereich meldet das Laufband; Änderungen nur während das Band läuft |
-| Switch | Bluetooth-Verbindung | Aus = Laufband für andere Apps freigeben |
+| Button | Start, pause, stop | |
+| Number | Target speed | Range is reported by the treadmill; changes only while the belt is running |
+| Switch | Bluetooth connection | Off = release the treadmill for other apps |
 
-**Optionen:** Schrittlänge (für die Schätzung, Standard 0,70 m) und Körpergewicht (wird an FitShow-Geräte übertragen).
+**Options:** stride length (for the step estimate, default 0.70 m) and body weight (sent to FitShow devices).
 
-## Verhalten
+The UI is available in English and German.
 
-- Home Assistant verbindet automatisch, sobald das Laufband per Bluetooth sichtbar ist. Ist es aus, sind die
-  Entitäten „nicht verfügbar“.
-- Ein BLE-Laufband erlaubt meist nur **eine** Verbindung. Solange Home Assistant verbunden ist, kann sich die
-  Hersteller-App nicht verbinden – dafür den Schalter *Bluetooth-Verbindung* ausschalten.
-- Bei FitShow wird der Status jede Sekunde abgefragt; Befehle werden nacheinander gesendet und bestätigt.
+## Behavior
 
-### Beispiel-Automation
+- Home Assistant connects automatically as soon as the treadmill is visible over Bluetooth.
+- **When the treadmill is switched off**, the integration stays loaded normally – there is **no setup
+  error**. Its entities simply become *unavailable* until the treadmill is switched on again, then it
+  reconnects on its own. Only the *Bluetooth connection* switch stays available.
+- A BLE treadmill usually accepts only **one** connection. While Home Assistant is connected, the
+  vendor app can't connect – turn off the *Bluetooth connection* switch to release it.
+- FitShow devices are polled for their status every second; commands are sent one at a time and
+  acknowledged by the treadmill.
+
+### Example automation
 
 ```yaml
 automation:
-  - alias: Laufband nach 30 Minuten stoppen
+  - alias: Stop treadmill after 30 minutes
     triggers:
       - trigger: numeric_state
-        entity_id: sensor.tf_123456_trainingszeit
+        entity_id: sensor.tf_123456_elapsed_time
         above: 1800
     actions:
       - action: button.press
         target:
-          entity_id: button.tf_123456_stopp
+          entity_id: button.tf_123456_stop
 ```
 
-Die Entity-IDs hängen vom Gerätenamen und der Sprache ab – unter *Geräte & Dienste* nachsehen.
+Entity IDs depend on the device name and your language – check *Devices & services*.
 
-## Entwicklung
+## Development
 
 ```bash
 python3.13 -m venv .venv && . .venv/bin/activate
@@ -93,10 +110,10 @@ pip install -r requirements_test.txt
 pytest
 ```
 
-Die Tests simulieren ein FitShow-Laufband (FTMS-Daten + FitShow-Steuerung) und decken Protokoll,
-Gerätelogik, Config Flow und Entitäten ab.
+The tests simulate a FitShow treadmill (FTMS data + FitShow control) and cover the protocol, device
+logic, config flow and entities.
 
-## Danke
+## Credits
 
-Das FitShow-Protokoll stammt aus [qdomyos-zwift](https://github.com/cagnulein/qdomyos-zwift)
+The FitShow protocol is based on [qdomyos-zwift](https://github.com/cagnulein/qdomyos-zwift)
 (`src/devices/fitshowtreadmill`).

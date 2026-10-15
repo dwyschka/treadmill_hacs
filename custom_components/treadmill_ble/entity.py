@@ -1,4 +1,4 @@
-"""Basis-Entität für das Laufband."""
+"""Base entity for the treadmill."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from .device import TreadmillDevice
 
 
 class TreadmillEntity(Entity):
-    """Entität, die bei jeder Zustandsänderung des Laufbands aktualisiert wird."""
+    """Entity that is updated on every state change of the treadmill."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False

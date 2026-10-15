@@ -1,4 +1,4 @@
-"""Verbindung und Protokoll-Logik für ein Laufband (FTMS + FitShow)."""
+"""Connection and protocol handling for a treadmill (FTMS + FitShow)."""
 
 from __future__ import annotations
 
@@ -71,11 +71,16 @@ CONTROLLER_FTMS = "ftms"
 
 
 class TreadmillError(Exception):
-    """Befehl konnte nicht ausgeführt werden."""
+    """A command could not be executed. Carries a translation key for the UI."""
+
+    def __init__(self, translation_key: str, **placeholders: str) -> None:
+        super().__init__(translation_key, placeholders)
+        self.translation_key = translation_key
+        self.placeholders = placeholders
 
 
 class TreadmillDevice:
-    """Hält die BLE-Verbindung zum Laufband und den aktuellen Zustand."""
+    """Holds the BLE connection to the treadmill and its current state."""
 
     def __init__(
         self,
@@ -94,8 +99,8 @@ class TreadmillDevice:
         self._ble_device: BLEDevice | None = None
         self._client: BleakClient | None = None
         self._connect_lock = asyncio.Lock()
-        self._write_lock = asyncio.Lock()  # keine parallelen GATT-Operationen
-        self._command_lock = asyncio.Lock()  # Befehle nacheinander, jeweils bis zur Antwort
+        self._write_lock = asyncio.Lock()  # no concurrent GATT operations
+        self._command_lock = asyncio.Lock()  # one command at a time, until it is answered
         self._last_attempt = 0.0
         self._listeners: set[Callable[[], None]] = set()
         self._poll_task: asyncio.Task | None = None
@@ -118,11 +123,11 @@ class TreadmillDevice:
         self._ftms_cp: BleakGATTCharacteristic | None = None
         self._cp_pending: tuple[int, asyncio.Future[int]] | None = None
 
-        # Schritte aus Schrittfrequenz (RSC)
+        # steps from cadence (RSC)
         self._rsc_steps = 0.0
         self._rsc_last: float | None = None
 
-    # --- Zustand / Listener ------------------------------------------------------
+    # --- State / listeners -------------------------------------------------------
 
     @property
     def connected(self) -> bool:
@@ -139,10 +144,10 @@ class TreadmillDevice:
     def set_ble_device(self, ble_device: BLEDevice) -> None:
         self._ble_device = ble_device
 
-    # --- Verbindung --------------------------------------------------------------
+    # --- Connection --------------------------------------------------------------
 
     async def async_ensure_connected(self, force: bool = False) -> None:
-        """Verbindet, falls nötig. Wird bei jedem Advertising aufgerufen – daher gedrosselt."""
+        """Connect if needed. Called for every advertisement, hence throttled."""
         if not self.enabled or self.connected or self._ble_device is None:
             return
         if self._connect_lock.locked():
@@ -161,18 +166,18 @@ class TreadmillDevice:
                     ble_device_callback=lambda: self._ble_device,
                 )
             except (BleakError, TimeoutError) as err:
-                _LOGGER.debug("%s: Verbindung fehlgeschlagen: %s", self.name, err)
+                _LOGGER.debug("%s: connection failed: %s", self.name, err)
                 return
 
             self._client = client
             try:
                 await self._async_setup(client)
             except (BleakError, TimeoutError) as err:
-                _LOGGER.warning("%s: Einrichtung fehlgeschlagen: %s", self.name, err)
+                _LOGGER.warning("%s: setup failed: %s", self.name, err)
                 await self._async_drop_client()
                 return
 
-            _LOGGER.info("%s: verbunden (Steuerung: %s)", self.name, self.controller or "keine")
+            _LOGGER.info("%s: connected (control: %s)", self.name, self.controller or "none")
             self._notify()
 
     async def _async_setup(self, client: BleakClient) -> None:
@@ -192,7 +197,7 @@ class TreadmillDevice:
         await self._async_try_notify(client, services.get_characteristic(HR_MEASUREMENT), self._on_heart_rate)
         await self._async_try_notify(client, services.get_characteristic(RSC_MEASUREMENT), self._on_rsc)
 
-        # FitShow hat Vorrang: diese Geräte verweigern die Steuerung per FTMS meist
+        # FitShow takes precedence: these devices usually refuse control via FTMS
         for svc_uuid, write_uuid, notify_uuid in FITSHOW_VARIANTS:
             svc = services.get_service(svc_uuid)
             if svc is None:
@@ -205,7 +210,7 @@ class TreadmillDevice:
             self._fs_write_response = "write-without-response" not in write_ch.properties
             await client.start_notify(notify_ch, self._on_fitshow)
             self.controller = CONTROLLER_FITSHOW
-            # Init-Sequenz wie qdomyos-zwift: Nutzerdaten + Geschwindigkeitsbereich abfragen
+            # Init sequence as in qdomyos-zwift: user profile + query speed range
             await self._async_fs_write(fitshow_user_payload(self.weight))
             await self._async_fs_write(bytes([FITSHOW_SYS_INFO, FITSHOW_INFO_SPEED]))
             self._poll_task = self._hass.async_create_background_task(
@@ -219,29 +224,29 @@ class TreadmillDevice:
         ch: BleakGATTCharacteristic | None,
         handler: Callable[[BleakGATTCharacteristic, bytearray], None],
     ) -> bool:
-        """Optionale Characteristic abonnieren – Fehler nur loggen."""
+        """Subscribe to an optional characteristic – errors are only logged."""
         if ch is None:
             return False
         try:
             await client.start_notify(ch, handler)
         except BleakError as err:
-            _LOGGER.debug("%s: %s nicht abonnierbar: %s", self.name, ch.uuid, err)
+            _LOGGER.debug("%s: cannot subscribe to %s: %s", self.name, ch.uuid, err)
             return False
         return True
 
     async def _async_fitshow_poll(self) -> None:
-        """FitShow schickt den Status nur auf Anfrage."""
+        """FitShow only reports its status when asked."""
         status = bytes([FITSHOW_SYS_STATUS])
         while self.connected:
             if not self._command_lock.locked():
                 try:
                     await self._async_fs_write(status)
                 except (BleakError, TimeoutError) as err:
-                    _LOGGER.debug("%s: Status-Abfrage fehlgeschlagen: %s", self.name, err)
+                    _LOGGER.debug("%s: status poll failed: %s", self.name, err)
             await asyncio.sleep(FITSHOW_POLL_INTERVAL)
 
     def _on_disconnected(self, _client: BleakClient) -> None:
-        _LOGGER.debug("%s: Verbindung getrennt", self.name)
+        _LOGGER.debug("%s: disconnected", self.name)
         self._reset_connection_state()
         self._notify()
 
@@ -254,10 +259,10 @@ class TreadmillDevice:
             self._poll_task = None
         for fut in self._fs_pending.values():
             if not fut.done():
-                fut.set_exception(TreadmillError("Verbindung getrennt"))
+                fut.set_exception(TreadmillError("disconnected"))
         self._fs_pending.clear()
         if self._cp_pending and not self._cp_pending[1].done():
-            self._cp_pending[1].set_exception(TreadmillError("Verbindung getrennt"))
+            self._cp_pending[1].set_exception(TreadmillError("disconnected"))
         self._cp_pending = None
         self._rsc_last = None
 
@@ -271,7 +276,7 @@ class TreadmillDevice:
                 pass
 
     async def async_disconnect(self) -> None:
-        """Verbindung trennen und nicht automatisch neu verbinden."""
+        """Disconnect and do not reconnect automatically."""
         self.enabled = False
         await self._async_drop_client()
         self._notify()
@@ -281,7 +286,7 @@ class TreadmillDevice:
         self._notify()
         await self.async_ensure_connected(force=True)
 
-    # --- Befehle -----------------------------------------------------------------
+    # --- Commands ----------------------------------------------------------------
 
     async def async_start(self) -> None:
         if self.controller == CONTROLLER_FITSHOW:
@@ -306,9 +311,9 @@ class TreadmillDevice:
         low, high = self.speed_range
         kmh = round(min(high, max(low, kmh)), 1)
         if self.controller == CONTROLLER_FITSHOW:
-            # FitShow ignoriert Zielwerte, solange das Band nicht läuft (z. B. im Countdown)
+            # FitShow ignores targets while the belt is not running (e.g. during the countdown)
             if not self.running:
-                raise TreadmillError("Laufband läuft nicht")
+                raise TreadmillError("not_running")
             await self._async_fs_command(fitshow_target_payload(kmh, self._fs_incline_raw))
         else:
             value = round(kmh * 100)
@@ -318,7 +323,7 @@ class TreadmillDevice:
 
     def _require_connection(self) -> None:
         if not self.connected or self.controller is None:
-            raise TreadmillError("Laufband nicht verbunden oder nicht steuerbar")
+            raise TreadmillError("not_connected")
 
     # FitShow
 
@@ -330,7 +335,7 @@ class TreadmillDevice:
             )
 
     async def _async_fs_command(self, payload: bytes) -> None:
-        """Befehl senden und auf das Echo (cmd/par) als Bestätigung warten."""
+        """Send a command and wait for its echo (cmd/par) as acknowledgement."""
         self._require_connection()
         async with self._command_lock:
             key = (payload[0], payload[1])
@@ -341,9 +346,9 @@ class TreadmillDevice:
                 async with asyncio.timeout(COMMAND_TIMEOUT):
                     await fut
             except TimeoutError as err:
-                raise TreadmillError("Keine Bestätigung vom Laufband") from err
+                raise TreadmillError("no_acknowledgement") from err
             except BleakError as err:
-                raise TreadmillError(f"Bluetooth-Fehler: {err}") from err
+                raise TreadmillError("bluetooth_error", error=str(err)) from err
             finally:
                 self._fs_pending.pop(key, None)
 
@@ -359,9 +364,9 @@ class TreadmillDevice:
             async with asyncio.timeout(COMMAND_TIMEOUT):
                 return await fut
         except TimeoutError as err:
-            raise TreadmillError("Keine Antwort vom Laufband") from err
+            raise TreadmillError("no_response") from err
         except BleakError as err:
-            raise TreadmillError(f"Bluetooth-Fehler: {err}") from err
+            raise TreadmillError("bluetooth_error", error=str(err)) from err
         finally:
             self._cp_pending = None
 
@@ -376,14 +381,14 @@ class TreadmillDevice:
                 await self._async_ftms_request_control()
                 result = await self._async_ftms_send(payload)
             if result != FTMS_RESULT_SUCCESS:
-                raise TreadmillError(f"FTMS: {FTMS_RESULT_TEXT.get(result, hex(result))}")
+                raise TreadmillError("ftms_rejected", result=FTMS_RESULT_TEXT.get(result, hex(result)))
 
     async def _async_ftms_request_control(self) -> None:
-        # Manche Geräte lehnen Request Control ab, führen Befehle aber trotzdem aus
+        # Some devices reject Request Control but execute commands anyway
         result = await self._async_ftms_send(bytes([FTMS_OP_REQUEST_CONTROL]))
         self._ftms_has_control = result == FTMS_RESULT_SUCCESS
         if not self._ftms_has_control:
-            _LOGGER.debug("%s: Request Control abgelehnt (%s)", self.name, result)
+            _LOGGER.debug("%s: Request Control rejected (%s)", self.name, result)
 
     # --- Notifications -----------------------------------------------------------
 
@@ -391,7 +396,7 @@ class TreadmillDevice:
         try:
             parsed = parse_treadmill_data(bytes(data))
         except (IndexError, ValueError):
-            _LOGGER.debug("%s: ungültiges Treadmill-Data-Paket: %s", self.name, data.hex())
+            _LOGGER.debug("%s: invalid Treadmill Data packet: %s", self.name, data.hex())
             return
         self._has_ftms_data = True
         self.data.update(parsed)
@@ -400,7 +405,7 @@ class TreadmillDevice:
 
     def _on_ftms_status(self, _ch: BleakGATTCharacteristic, data: bytearray) -> None:
         if not data or self.controller == CONTROLLER_FITSHOW:
-            return  # FitShow liefert einen genaueren Status
+            return  # FitShow reports a more detailed status
         status, running = parse_ftms_status(bytes(data))
         if status is not None:
             self.data["status"] = status
@@ -427,7 +432,7 @@ class TreadmillDevice:
         self.data["cadence"] = cadence
         if self.data.get("steps_source") != STEPS_SOURCE_TREADMILL:
             if self._rsc_last is not None:
-                # Lücken begrenzen, damit Verbindungsabbrüche nicht als Schritte zählen
+                # Cap gaps so connection drops don't count as steps
                 self._rsc_steps += cadence * min(now - self._rsc_last, 5.0) / 60
             self.data["steps"] = round(self._rsc_steps)
             self.data["steps_source"] = STEPS_SOURCE_SENSOR
@@ -446,7 +451,7 @@ class TreadmillDevice:
         if cmd == FITSHOW_SYS_INFO and par == FITSHOW_INFO_SPEED:
             if speed_range := parse_fitshow_speed_range(b):
                 self.speed_range = speed_range
-                _LOGGER.debug("%s: Geschwindigkeitsbereich %s–%s km/h", self.name, *speed_range)
+                _LOGGER.debug("%s: speed range %s–%s km/h", self.name, *speed_range)
 
         elif cmd == FITSHOW_SYS_STATUS:
             st = parse_fitshow_status(b)
@@ -458,7 +463,7 @@ class TreadmillDevice:
                     self.data["steps"] = st["steps"]
                     self.data["steps_source"] = STEPS_SOURCE_TREADMILL
                 if not self._has_ftms_data:
-                    # Ohne FTMS die FitShow-Werte verwenden
+                    # Without FTMS, use the FitShow values
                     self.data["speed"] = st["speed"] if self.running else 0.0
                     self.data["incline"] = float(st["incline_raw"])
                     self.data["elapsed_time"] = st["elapsed_time"]
@@ -475,7 +480,7 @@ class TreadmillDevice:
         self._notify()
 
     def _update_estimated_steps(self) -> None:
-        """Schritte aus Distanz ÷ Schrittlänge, wenn keine echte Quelle vorhanden ist."""
+        """Steps from distance ÷ stride length when no real source is available."""
         if self.data.get("steps_source") in (STEPS_SOURCE_TREADMILL, STEPS_SOURCE_SENSOR):
             return
         distance = self.data.get("distance")

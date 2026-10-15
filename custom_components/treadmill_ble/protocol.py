@@ -1,7 +1,7 @@
-"""Protokoll-Helfer für FTMS und FitShow – ohne Home-Assistant-Abhängigkeiten.
+"""Protocol helpers for FTMS and FitShow – no Home Assistant dependencies.
 
 FTMS: Bluetooth SIG "Fitness Machine Service 1.0".
-FitShow: proprietäres Protokoll nach qdomyos-zwift (src/devices/fitshowtreadmill).
+FitShow: proprietary protocol, as implemented by qdomyos-zwift (src/devices/fitshowtreadmill).
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Any
 
 
 def uuid16(short: int) -> str:
-    """16-bit-UUID in die volle Bluetooth-Base-UUID umwandeln."""
+    """Expand a 16-bit UUID to the full Bluetooth base UUID."""
     return f"0000{short:04x}-0000-1000-8000-00805f9b34fb"
 
 
@@ -36,15 +36,16 @@ FTMS_OP_RESPONSE = 0x80
 FTMS_RESULT_SUCCESS = 0x01
 FTMS_RESULT_CONTROL_NOT_PERMITTED = 0x05
 FTMS_RESULT_TEXT = {
-    0x01: "Erfolgreich",
-    0x02: "Nicht unterstützt",
-    0x03: "Ungültiger Parameter",
-    0x04: "Fehlgeschlagen",
-    0x05: "Steuerung nicht erlaubt",
+    0x01: "success",
+    0x02: "not supported",
+    0x03: "invalid parameter",
+    0x04: "operation failed",
+    0x05: "control not permitted",
 }
 
+
 def parse_treadmill_data(data: bytes) -> dict[str, Any]:
-    """Treadmill Data (0x2ACD) parsen. Nur gesendete Felder sind enthalten."""
+    """Parse Treadmill Data (0x2ACD). Only fields present in the packet are returned."""
     flags = struct.unpack_from("<H", data, 0)[0]
     o = 2
     d: dict[str, Any] = {}
@@ -58,7 +59,7 @@ def parse_treadmill_data(data: bytes) -> dict[str, Any]:
         o += struct.calcsize(fmt)
         return value
 
-    if not has(0):  # "More Data" = 0 → Instantaneous Speed vorhanden
+    if not has(0):  # "More Data" = 0 → Instantaneous Speed present
         d["speed"] = read("<H") / 100  # km/h
     if has(1):
         d["avg_speed"] = read("<H") / 100
@@ -91,7 +92,7 @@ def parse_treadmill_data(data: bytes) -> dict[str, Any]:
 
 
 def parse_ftms_status(data: bytes) -> tuple[str | None, bool | None]:
-    """Fitness Machine Status (0x2ADA) → (Status, läuft?)."""
+    """Fitness Machine Status (0x2ADA) → (status, running?)."""
     code = data[0]
     if code == 0x02 and len(data) > 1:
         return ("paused", False) if data[1] == 0x02 else ("stopped", False)
@@ -108,13 +109,13 @@ def parse_heart_rate(data: bytes) -> int:
 
 
 def parse_rsc_cadence(data: bytes) -> int:
-    """Running Speed and Cadence Measurement (0x2A53) → Schritte/min."""
+    """Running Speed and Cadence Measurement (0x2A53) → steps/min."""
     return data[3]
 
 
 # --- FitShow -----------------------------------------------------------------
 
-# Bekannte Varianten: (Service, Write-Characteristic, Notify-Characteristic)
+# Known variants: (service, write characteristic, notify characteristic)
 FITSHOW_VARIANTS = [
     (uuid16(0xFFF0), uuid16(0xFFF2), uuid16(0xFFF1)),
     (uuid16(0xFFE0), uuid16(0xFFE1), uuid16(0xFFE4)),
@@ -142,7 +143,7 @@ FITSHOW_DATA_SPORT = 0x00
 FITSHOW_STATUS_RUNNING = 3
 FITSHOW_STATUS = {
     0: "idle",
-    1: "stopped",  # Einheit beendet
+    1: "stopped",  # workout finished
     2: "starting",  # Countdown
     3: "running",
     4: "stopped",
@@ -156,7 +157,7 @@ STATUS_OPTIONS = sorted({*FITSHOW_STATUS.values(), "unknown"})
 
 
 def fitshow_frame(payload: bytes) -> bytes:
-    """Payload in ein FitShow-Paket verpacken: 0x02 | Payload | XOR | 0x03."""
+    """Wrap a payload in a FitShow frame: 0x02 | payload | XOR | 0x03."""
     xor = 0
     for b in payload:
         xor ^= b
@@ -164,7 +165,7 @@ def fitshow_frame(payload: bytes) -> bytes:
 
 
 def fitshow_unframe(data: bytes) -> bytes | None:
-    """Paket prüfen und das komplette Paket zurückgeben, sonst None."""
+    """Validate a frame and return it, or None if it is invalid."""
     if len(data) < 4 or data[0] != FITSHOW_HEADER or data[-1] != FITSHOW_FOOTER:
         return None
     xor = 0
@@ -174,27 +175,27 @@ def fitshow_unframe(data: bytes) -> bytes | None:
 
 
 def fitshow_start_payload() -> bytes:
-    """Start im normalen Modus (Sport-ID 0, keine Zielvorgabe)."""
+    """Start in normal mode (sport ID 0, no target)."""
     return bytes([FITSHOW_SYS_CONTROL, FITSHOW_CONTROL_START, 0, 0, 0, 0, 0, 0, 0, 0])
 
 
 def fitshow_user_payload(weight_kg: float) -> bytes:
-    """Nutzerdaten wie qdomyos-zwift (User-ID 0, 110, Alter 30, Gewicht)."""
+    """User profile as sent by qdomyos-zwift (user ID 0, 110, age 30, weight)."""
     return bytes([FITSHOW_SYS_CONTROL, FITSHOW_CONTROL_USER, 0, 0, 110, 30, round(weight_kg) & 0xFF])
 
 
 def fitshow_target_payload(speed_kmh: float, incline_raw: int) -> bytes:
-    """Zielgeschwindigkeit (0,1 km/h) + Steigung (Rohwert, int8)."""
+    """Target speed (0.1 km/h) + incline (raw value, int8)."""
     return bytes(
         [FITSHOW_SYS_CONTROL, FITSHOW_CONTROL_TARGET, round(speed_kmh * 10) & 0xFF, incline_raw & 0xFF]
     )
 
 
 def parse_fitshow_status(b: bytes) -> dict[str, Any]:
-    """FitShow-Statuspaket (komplettes Paket inkl. Header) parsen."""
+    """Parse a FitShow status frame (complete frame including header)."""
     par = b[2]
     result: dict[str, Any] = {"code": par, "status": FITSHOW_STATUS.get(par, "unknown")}
-    # Laufdaten nur bei End/Running/Stop/Pause und vollständigem Paket
+    # Workout data only for end/running/stop/pause and a complete frame
     if par in (1, 3, 4, 10) and len(b) >= 16:
         result.update(
             speed=b[3] / 10,
@@ -207,14 +208,14 @@ def parse_fitshow_status(b: bytes) -> dict[str, Any]:
 
 
 def parse_fitshow_speed_range(b: bytes) -> tuple[float, float] | None:
-    """Antwort auf Info/Speed → (min, max) in km/h."""
+    """Reply to info/speed → (min, max) in km/h."""
     if len(b) > 6 and b[3] > 0:
         return b[4] / 10, b[3] / 10
     return None
 
 
 def parse_fitshow_sport_steps(b: bytes) -> int | None:
-    """Antwort auf Data/Sport → Schrittzahl."""
+    """Reply to data/sport → step count."""
     if len(b) > 12:
         return b[9] | b[10] << 8
     return None

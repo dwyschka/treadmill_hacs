@@ -1,4 +1,4 @@
-"""Tests für custom_components/treadmill_ble mit simuliertem FitShow-Laufband."""
+"""Tests for custom_components/treadmill_ble using a simulated FitShow treadmill."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from homeassistant.config_entries import SOURCE_BLUETOOTH, SOURCE_USER
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import HomeAssistantError
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -64,7 +65,7 @@ def fs_frame(*payload):
 
 
 class FakeFitShowClient:
-    """FitShow-Laufband, das zusätzlich FTMS-Daten liefert, FTMS-Steuerung aber verweigert."""
+    """FitShow treadmill that also sends FTMS data but refuses FTMS control."""
 
     def __init__(self):
         self.fs_write = Char(p.uuid16(0xFFF2), ("write-without-response",))
@@ -92,7 +93,7 @@ class FakeFitShowClient:
             assert response is False
             cmd, par = data[1], data[2]
             loop = asyncio.get_running_loop()
-            if cmd == p.FITSHOW_SYS_CONTROL:  # Echo als Bestätigung
+            if cmd == p.FITSHOW_SYS_CONTROL:  # echo as acknowledgement
                 loop.call_soon(self.emit, self.fs_notify.uuid, fs_frame(cmd, par))
             elif cmd == p.FITSHOW_SYS_INFO and par == p.FITSHOW_INFO_SPEED:
                 loop.call_soon(self.emit, self.fs_notify.uuid, fs_frame(0x50, 0x02, 60, 10, 0))
@@ -111,11 +112,11 @@ async def connect_fake(hass, device, client):
     await asyncio.sleep(0.01)
 
 
-# --- Protokoll -----------------------------------------------------------------
+# --- Protocol ------------------------------------------------------------------
 
 
 def test_treadmill_data():
-    # Distanz + Steigung + Energie + Zeit, Speed 8,10 km/h
+    # distance + incline + energy + time, speed 8.10 km/h
     data = bytes([0x8C, 0x04, 0x2A, 0x03, 0xE8, 0x03, 0x00, 0x0F, 0x00, 0x00, 0x00,
                   0x2D, 0x00, 0xFF, 0xFF, 0xFF, 0x3C, 0x00])
     assert p.parse_treadmill_data(data) == {
@@ -136,7 +137,7 @@ def test_fitshow_status():
     assert st["steps"] == 1234 and st["heart_rate"] == 99 and st["elapsed_time"] == 125
 
 
-# --- Gerätelogik ---------------------------------------------------------------
+# --- Device logic --------------------------------------------------------------
 
 
 async def test_device_fitshow(hass: HomeAssistant):
@@ -148,26 +149,27 @@ async def test_device_fitshow(hass: HomeAssistant):
     assert device.speed_range == (1.0, 6.0)
     assert p.fitshow_frame(p.fitshow_user_payload(80)) in client.writes
 
-    # Speed vor dem Start → Fehler
-    with pytest.raises(TreadmillError, match="läuft nicht"):
+    # speed before start → error
+    with pytest.raises(TreadmillError) as exc:
         await device.async_set_speed(3)
+    assert exc.value.translation_key == "not_running"
 
     await device.async_start()
     assert p.fitshow_frame(p.fitshow_start_payload()) in client.writes
 
-    # FTMS-Daten (Distanz 700 m) → geschätzte Schritte
+    # FTMS data (distance 700 m) → estimated steps
     client.emit(p.TREADMILL_DATA, bytearray([0x04, 0x00, 0x5E, 0x01, 0xBC, 0x02, 0x00]))
     assert device.data["speed"] == 3.5 and device.data["distance"] == 700
     assert device.data["steps"] == 1000 and device.data["steps_source"] == "estimated"
 
-    # FitShow-Status: läuft, Steigung 2, 1234 Schritte → echte Schritte haben Vorrang
+    # FitShow status: running, incline 2, 1234 steps → real steps take precedence
     client.emit(client.fs_notify.uuid, fs_frame(0x51, 3, 35, 2, 125, 0, 12, 0, 9, 0, 0xD2, 0x04, 0, 0))
     assert device.running and device.data["status"] == "running"
     assert device.data["steps"] == 1234 and device.data["steps_source"] == "treadmill"
     client.emit(p.TREADMILL_DATA, bytearray([0x04, 0x00, 0x5E, 0x01, 0xBC, 0x02, 0x00]))
     assert device.data["steps"] == 1234
 
-    # Speed wird begrenzt (max 6,0) und Steigung mitgesendet
+    # speed is clamped (max 6.0) and the incline is sent along
     await device.async_set_speed(9)
     assert p.fitshow_frame(bytes([0x53, 0x02, 60, 2])) in client.writes
     assert device.data["target_speed"] == 6.0
@@ -176,10 +178,10 @@ async def test_device_fitshow(hass: HomeAssistant):
     await device.async_stop()
     assert p.fitshow_frame(bytes([0x53, 0x06])) in client.writes
     assert p.fitshow_frame(bytes([0x53, 0x03])) in client.writes
-    # Keine FTMS-Control-Point-Befehle, da FitShow Vorrang hat
+    # no FTMS control point commands, FitShow takes precedence
     assert not any(w[:1] in (b"\x00", b"\x07", b"\x08") and len(w) <= 3 for w in client.writes)
 
-    # Status-Polling läuft
+    # status polling is running
     client.writes.clear()
     await asyncio.sleep(1.1)
     assert p.fitshow_frame(bytes([0x51])) in client.writes
@@ -198,15 +200,17 @@ async def test_device_command_timeout(hass: HomeAssistant):
 
     client.write_gatt_char = silent
     with patch("custom_components.treadmill_ble.device.COMMAND_TIMEOUT", 0.05):
-        with pytest.raises(TreadmillError, match="Bestätigung"):
+        with pytest.raises(TreadmillError) as exc:
             await device.async_stop()
+    assert exc.value.translation_key == "no_acknowledgement"
     await device.async_disconnect()
 
 
 async def test_not_connected(hass: HomeAssistant):
     device = TreadmillDevice(hass, ADDRESS, "TF-1", stride_length=0.7, weight=75)
-    with pytest.raises(TreadmillError, match="nicht verbunden"):
+    with pytest.raises(TreadmillError) as exc:
         await device.async_start()
+    assert exc.value.translation_key == "not_connected"
 
 
 # --- Config Flow + Setup ------------------------------------------------------
@@ -236,7 +240,7 @@ async def test_flow_bluetooth(hass: HomeAssistant):
 
 
 async def test_flow_bluetooth_any_ftms(hass: HomeAssistant):
-    """Jedes FTMS-Gerät wird angeboten – auch mit abweichendem Maschinentyp."""
+    """Every FTMS device is offered – even with a different machine type."""
     info = service_info(name="WalkPad", service_data={p.FTMS_SERVICE: bytes([1, 0x20, 0])})
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=info
@@ -245,7 +249,7 @@ async def test_flow_bluetooth_any_ftms(hass: HomeAssistant):
 
 
 async def test_flow_bluetooth_rejects_unrelated(hass: HomeAssistant):
-    info = service_info(name="Kopfhörer", uuids=())
+    info = service_info(name="Headphones", uuids=())
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=info
     )
@@ -269,7 +273,7 @@ async def test_flow_user(hass: HomeAssistant):
 
 
 async def test_flow_user_lists_unknown_devices(hass: HomeAssistant):
-    """Nicht erkannte Geräte mit Namen sind wählbar, namenlose nicht."""
+    """Unrecognized named devices can be picked, unnamed ones cannot."""
     unknown = service_info(name="WalkPad X", uuids=())
     unknown.address = "11:22:33:44:55:66"
     nameless = service_info(name="11-22-33-44-55-77", uuids=())
@@ -283,7 +287,7 @@ async def test_flow_user_lists_unknown_devices(hass: HomeAssistant):
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
         options = list(result["data_schema"].schema["address"].container)
-        assert options == ["__refresh__", ADDRESS, "11:22:33:44:55:66"]  # erkanntes Laufband zuerst
+        assert options == ["__refresh__", ADDRESS, "11:22:33:44:55:66"]  # recognized treadmill first
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_ADDRESS: "11:22:33:44:55:66"}
         )
@@ -292,7 +296,7 @@ async def test_flow_user_lists_unknown_devices(hass: HomeAssistant):
 
 
 async def test_flow_user_none_then_refresh(hass: HomeAssistant):
-    """Leere Liste → Hinweis; "Neu suchen" lädt neu und findet das inzwischen sichtbare Gerät."""
+    """Empty list → hint; "search again" reloads and finds the device that appeared meanwhile."""
     found: list = []
     with (
         patch(
@@ -318,7 +322,7 @@ async def test_flow_user_none_then_refresh(hass: HomeAssistant):
 
 
 async def test_flow_user_marks_not_connectable(hass: HomeAssistant):
-    """Nur passiv gesehene Geräte erscheinen trotzdem, aber gekennzeichnet."""
+    """Devices seen only passively are still listed, but marked."""
     with (
         patch(
             "custom_components.treadmill_ble.config_flow.async_discovered_service_info",
@@ -331,7 +335,7 @@ async def test_flow_user_marks_not_connectable(hass: HomeAssistant):
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     assert discovered.call_args.kwargs["connectable"] is False
-    assert "nicht verbindbar" in result["data_schema"].schema["address"].container[ADDRESS]
+    assert "not connectable" in result["data_schema"].schema["address"].container[ADDRESS]
 
 
 async def test_options_flow(hass: HomeAssistant):
@@ -387,7 +391,17 @@ async def test_setup_entities(hass: HomeAssistant):
     await hass.services.async_call("button", "press", {"entity_id": "button.tf_123456_stop"}, blocking=True)
     assert p.fitshow_frame(bytes([0x53, 0x03])) in client.writes
 
-    # Verbindung freigeben → Entitäten nicht verfügbar, Schalter bleibt bedienbar
+    # not running anymore → translated error from the number entity
+    client.emit(client.fs_notify.uuid, fs_frame(0x51, 4, 0, 0, 125, 0, 12, 0, 9, 0, 0xD2, 0x04, 0, 0))
+    with pytest.raises(HomeAssistantError) as exc:
+        await hass.services.async_call(
+            "number", "set_value", {"entity_id": "number.tf_123456_target_speed", "value": 3}, blocking=True
+        )
+    assert exc.value.translation_key == "not_running"
+    assert str(exc.value) == "The treadmill is not running. Start it before changing the speed"
+    assert p.fitshow_frame(bytes([0x53, 0x03])) in client.writes
+
+    # release the connection → entities unavailable, switch stays usable
     await hass.services.async_call(
         "switch", "turn_off", {"entity_id": "switch.tf_123456_bluetooth_connection"}, blocking=True
     )

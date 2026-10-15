@@ -1,4 +1,4 @@
-"""Zielgeschwindigkeit."""
+"""Target speed."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import TreadmillConfigEntry
+from .const import DOMAIN
 from .device import TreadmillDevice, TreadmillError
 from .entity import TreadmillEntity
 
@@ -20,7 +21,7 @@ async def async_setup_entry(
 
 
 class TreadmillTargetSpeed(TreadmillEntity, NumberEntity):
-    """Zielgeschwindigkeit – der Bereich kommt (bei FitShow) vom Laufband."""
+    """Target speed – the range is reported by the treadmill (FitShow)."""
 
     _attr_device_class = NumberDeviceClass.SPEED
     _attr_native_unit_of_measurement = UnitOfSpeed.KILOMETERS_PER_HOUR
@@ -44,7 +45,7 @@ class TreadmillTargetSpeed(TreadmillEntity, NumberEntity):
 
     @property
     def native_value(self) -> float | None:
-        # Läuft das Band, zeigt das Feld die Ist-Geschwindigkeit, sonst den letzten Zielwert
+        # While running, show the actual speed, otherwise the last target
         if self._device.running and (speed := self._device.data.get("speed")):
             return round(speed, 1)
         return self._device.data.get("target_speed")
@@ -53,4 +54,8 @@ class TreadmillTargetSpeed(TreadmillEntity, NumberEntity):
         try:
             await self._device.async_set_speed(value)
         except TreadmillError as err:
-            raise HomeAssistantError(str(err)) from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key=err.translation_key,
+                translation_placeholders=err.placeholders,
+            ) from err

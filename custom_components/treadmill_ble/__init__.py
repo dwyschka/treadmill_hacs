@@ -1,4 +1,4 @@
-"""Treadmill (FTMS / FitShow) – Laufband per Bluetooth auslesen und steuern."""
+"""Treadmill (FTMS / FitShow) – read and control a treadmill over Bluetooth."""
 
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ type TreadmillConfigEntry = ConfigEntry[TreadmillDevice]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: TreadmillConfigEntry) -> bool:
-    """Integration einrichten.
+    """Set up the integration.
 
-    Das Laufband ist meist ausgeschaltet – deshalb wird nicht beim Setup verbunden,
-    sondern sobald es per Bluetooth sichtbar wird.
+    The treadmill is usually switched off, so we don't connect during setup but as soon
+    as it becomes visible over Bluetooth.
     """
     address: str = entry.data[CONF_ADDRESS]
     device = TreadmillDevice(
@@ -49,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TreadmillConfigEntry) ->
         )
     )
 
-    # Schon sichtbar? Dann sofort verbinden.
+    # Already visible? Connect right away.
     if ble_device := bluetooth.async_ble_device_from_address(hass, address, connectable=True):
         device.set_ble_device(ble_device)
         entry.async_create_background_task(
@@ -68,7 +68,7 @@ async def _async_update_options(hass: HomeAssistant, entry: TreadmillConfigEntry
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: TreadmillConfigEntry) -> bool:
-    """Integration entladen und Verbindung trennen."""
+    """Unload the integration and disconnect."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         await entry.runtime_data.async_disconnect()

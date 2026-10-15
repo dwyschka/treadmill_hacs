@@ -109,5 +109,28 @@
         "name": "Bluetooth-Verbindung"
       }
     }
+  },
+  "exceptions": {
+    "not_connected": {
+      "message": "Laufband nicht verbunden oder nicht steuerbar"
+    },
+    "not_running": {
+      "message": "Das Laufband läuft nicht. Starte es, bevor du die Geschwindigkeit änderst"
+    },
+    "no_acknowledgement": {
+      "message": "Das Laufband hat den Befehl nicht bestätigt"
+    },
+    "no_response": {
+      "message": "Das Laufband antwortet nicht"
+    },
+    "bluetooth_error": {
+      "message": "Bluetooth-Fehler: {error}"
+    },
+    "ftms_rejected": {
+      "message": "Das Laufband hat den Befehl abgelehnt: {result}"
+    },
+    "disconnected": {
+      "message": "Die Verbindung zum Laufband wurde getrennt"
+    }
   }
 }

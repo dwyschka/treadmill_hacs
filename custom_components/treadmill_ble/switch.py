@@ -1,4 +1,4 @@
-"""Schalter, um die Bluetooth-Verbindung freizugeben (z. B. für die Hersteller-App)."""
+"""Switch to release the Bluetooth connection (e.g. for the vendor app)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ async def async_setup_entry(
 
 
 class TreadmillConnectionSwitch(TreadmillEntity, SwitchEntity):
-    """An = Home Assistant verbindet automatisch, Aus = Verbindung frei für andere Apps."""
+    """On = Home Assistant connects automatically, off = connection free for other apps."""
 
     _attr_entity_category = EntityCategory.CONFIG
 

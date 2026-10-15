@@ -1,4 +1,4 @@
-"""Config Flow: Laufband per Bluetooth-Discovery oder manuell aus der Liste wählen."""
+"""Config flow: pick a treadmill via Bluetooth discovery or from a list."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from .protocol import FITSHOW_SERVICES, FTMS_SERVICE
 
 
 def is_supported(info: BluetoothServiceInfoBleak) -> bool:
-    """Jedes Gerät mit FTMS oder FitShow (Service oder typischer Name)."""
+    """Any device with FTMS or FitShow (service or typical name)."""
     if FTMS_SERVICE in info.service_uuids or FTMS_SERVICE in info.service_data:
         return True
     if any(uuid in info.service_uuids for uuid in FITSHOW_SERVICES):
@@ -44,7 +44,7 @@ def _title(info: BluetoothServiceInfoBleak) -> str:
 
 
 class TreadmillConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Config Flow für Laufbänder."""
+    """Config flow for treadmills."""
 
     VERSION = 1
 
@@ -82,10 +82,10 @@ class TreadmillConfigFlow(ConfigFlow, domain=DOMAIN):
                 title=_title(self._discovered[address]), data={CONF_ADDRESS: address}
             )
 
-        # Liste bei jedem Aufruf (auch über "Neu suchen") frisch aufbauen.
-        # Erkannte Laufbänder zuerst, danach alle übrigen Geräte mit Namen – manche Walking Pads
-        # zeigen FTMS/FitShow erst nach dem Verbinden. Auch nicht verbindbare Geräte werden
-        # angezeigt (z. B. nur über einen passiven Proxy gesehen), damit man sie überhaupt findet.
+        # Rebuild the list on every call (including "search again").
+        # Recognized treadmills first, then every other named device – some walking pads only
+        # expose FTMS/FitShow after connecting. Non-connectable devices are listed too (e.g. only
+        # seen through a passive proxy) so they can be found at all.
         configured = self._async_current_ids(include_ignore=False)
         self._discovered.clear()
         supported: dict[str, str] = {}
@@ -95,17 +95,17 @@ class TreadmillConfigFlow(ConfigFlow, domain=DOMAIN):
                 continue
             label = f"{_title(info)} ({info.address})"
             if async_ble_device_from_address(self.hass, info.address, connectable=True) is None:
-                label += " – nicht verbindbar"
+                label += " – not connectable"
             if is_supported(info):
                 supported[info.address] = label
             elif info.name and info.name != info.address.replace(":", "-"):
-                others[info.address] = f"{label} – nicht erkannt"
+                others[info.address] = f"{label} – not recognized"
             else:
                 continue
             self._discovered[info.address] = info
 
         others = dict(sorted(others.items(), key=lambda item: item[1].lower()))
-        options = {REFRESH: "↻ Neu suchen"} | supported | others
+        options = {REFRESH: "↻ Search again"} | supported | others
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
@@ -121,7 +121,7 @@ class TreadmillConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class TreadmillOptionsFlow(OptionsFlow):
-    """Schrittlänge (für die Schätzung) und Gewicht (FitShow-Nutzerprofil)."""
+    """Stride length (for the estimate) and body weight (FitShow user profile)."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
