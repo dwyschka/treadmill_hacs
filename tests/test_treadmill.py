@@ -136,12 +136,6 @@ def test_fitshow_status():
     assert st["steps"] == 1234 and st["heart_rate"] == 99 and st["elapsed_time"] == 125
 
 
-def test_ftms_type_filter():
-    assert p.ftms_advertises_treadmill(bytes([0x01, 0x01, 0x00])) is True
-    assert p.ftms_advertises_treadmill(bytes([0x01, 0x20, 0x00])) is False  # Indoor Bike
-    assert p.ftms_advertises_treadmill(None) is None
-
-
 # --- Gerätelogik ---------------------------------------------------------------
 
 
@@ -241,8 +235,17 @@ async def test_flow_bluetooth(hass: HomeAssistant):
     assert result["data"] == {CONF_ADDRESS: ADDRESS}
 
 
-async def test_flow_bluetooth_rejects_bike(hass: HomeAssistant):
-    info = service_info(name="Bike", service_data={p.FTMS_SERVICE: bytes([1, 0x20, 0])})
+async def test_flow_bluetooth_any_ftms(hass: HomeAssistant):
+    """Jedes FTMS-Gerät wird angeboten – auch mit abweichendem Maschinentyp."""
+    info = service_info(name="WalkPad", service_data={p.FTMS_SERVICE: bytes([1, 0x20, 0])})
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=info
+    )
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "bluetooth_confirm"
+
+
+async def test_flow_bluetooth_rejects_unrelated(hass: HomeAssistant):
+    info = service_info(name="Kopfhörer", uuids=())
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=info
     )
@@ -263,6 +266,29 @@ async def test_flow_user(hass: HomeAssistant):
             result["flow_id"], {CONF_ADDRESS: ADDRESS}
         )
     assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_flow_user_lists_unknown_devices(hass: HomeAssistant):
+    """Nicht erkannte Geräte mit Namen sind wählbar, namenlose nicht."""
+    unknown = service_info(name="WalkPad X", uuids=())
+    unknown.address = "11:22:33:44:55:66"
+    nameless = service_info(name="11-22-33-44-55-77", uuids=())
+    nameless.address = "11:22:33:44:55:77"
+    with (
+        patch(
+            "custom_components.treadmill_ble.config_flow.async_discovered_service_info",
+            return_value=[unknown, nameless, service_info(name="TF04-ABCD", uuids=())],
+        ),
+        patch("custom_components.treadmill_ble.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+        options = list(result["data_schema"].schema["address"].container)
+        assert options == [ADDRESS, "11:22:33:44:55:66"]  # erkanntes Laufband zuerst
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_ADDRESS: "11:22:33:44:55:66"}
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "WalkPad X"
 
 
 async def test_flow_user_none(hass: HomeAssistant):

@@ -15,7 +15,7 @@ FITSHOW_POLL_INTERVAL = 1.0  # s
 COMMAND_TIMEOUT = 5.0  # s
 
 # Bluetooth-Namen von Laufbändern mit FitShow-Modul (nach qdomyos-zwift)
-FITSHOW_NAME_PREFIXES = ("TF-",)
+FITSHOW_NAME_PREFIXES = ("TF", "SP-TM")
 
 STEPS_SOURCE_TREADMILL = "treadmill"
 STEPS_SOURCE_SENSOR = "cadence"

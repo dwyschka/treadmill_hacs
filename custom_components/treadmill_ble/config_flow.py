@@ -23,20 +23,16 @@ from .const import (
     DOMAIN,
     FITSHOW_NAME_PREFIXES,
 )
-from .protocol import FITSHOW_SERVICES, FTMS_SERVICE, ftms_advertises_treadmill
+from .protocol import FITSHOW_SERVICES, FTMS_SERVICE
 
 
 def is_supported(info: BluetoothServiceInfoBleak) -> bool:
-    """Laufband mit FTMS (Typ Laufband) oder FitShow-Modul?"""
-    name = info.name or ""
-    if name.upper().startswith(FITSHOW_NAME_PREFIXES):
+    """Jedes Gerät mit FTMS oder FitShow (Service oder typischer Name)."""
+    if FTMS_SERVICE in info.service_uuids or FTMS_SERVICE in info.service_data:
         return True
     if any(uuid in info.service_uuids for uuid in FITSHOW_SERVICES):
         return True
-    if FTMS_SERVICE in info.service_uuids:
-        # FTMS gibt es auch bei Rädern/Rudergeräten – Maschinentyp prüfen, falls angegeben
-        return ftms_advertises_treadmill(info.service_data.get(FTMS_SERVICE)) is not False
-    return False
+    return (info.name or "").upper().startswith(FITSHOW_NAME_PREFIXES)
 
 
 def _title(info: BluetoothServiceInfoBleak) -> str:
@@ -82,23 +78,29 @@ class TreadmillConfigFlow(ConfigFlow, domain=DOMAIN):
                 title=_title(self._discovered[address]), data={CONF_ADDRESS: address}
             )
 
+        # Erkannte Laufbänder zuerst, danach alle übrigen verbindbaren Geräte mit Namen –
+        # manche Walking Pads zeigen FTMS/FitShow erst nach dem Verbinden.
         configured = self._async_current_ids(include_ignore=False)
+        supported: dict[str, str] = {}
+        others: dict[str, str] = {}
         for info in async_discovered_service_info(self.hass, connectable=True):
-            if info.address not in configured and is_supported(info):
-                self._discovered[info.address] = info
+            if info.address in configured:
+                continue
+            if is_supported(info):
+                supported[info.address] = f"{_title(info)} ({info.address})"
+            elif info.name and info.name != info.address.replace(":", "-"):
+                others[info.address] = f"{info.name} ({info.address}) – nicht erkannt"
+            else:
+                continue
+            self._discovered[info.address] = info
 
         if not self._discovered:
             return self.async_abort(reason="no_devices_found")
 
+        others = dict(sorted(others.items(), key=lambda item: item[1].lower()))
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_ADDRESS): vol.In(
-                        {addr: f"{_title(info)} ({addr})" for addr, info in self._discovered.items()}
-                    )
-                }
-            ),
+            data_schema=vol.Schema({vol.Required(CONF_ADDRESS): vol.In(supported | others)}),
         )
 
     @staticmethod

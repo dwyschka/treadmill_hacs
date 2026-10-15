@@ -9,6 +9,50 @@
     {
       "local_name": "TF-*",
       "connectable": true
+    },
+    {
+      "local_name": "TF0*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF1*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF2*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF3*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF4*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF5*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF6*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF7*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF8*",
+      "connectable": true
+    },
+    {
+      "local_name": "TF9*",
+      "connectable": true
+    },
+    {
+      "local_name": "SP-TM*",
+      "connectable": true
     }
   ],
   "codeowners": [
@@ -23,5 +67,5 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/dwyschka/treadmill_hacs/issues",
   "requirements": [],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }

@@ -43,10 +43,6 @@ FTMS_RESULT_TEXT = {
     0x05: "Steuerung nicht erlaubt",
 }
 
-# Fitness Machine Type im Advertising (Service Data 0x1826), Bit 0 = Laufband
-FTMS_TYPE_TREADMILL = 0x0001
-
-
 def parse_treadmill_data(data: bytes) -> dict[str, Any]:
     """Treadmill Data (0x2ACD) parsen. Nur gesendete Felder sind enthalten."""
     flags = struct.unpack_from("<H", data, 0)[0]
@@ -114,14 +110,6 @@ def parse_heart_rate(data: bytes) -> int:
 def parse_rsc_cadence(data: bytes) -> int:
     """Running Speed and Cadence Measurement (0x2A53) → Schritte/min."""
     return data[3]
-
-
-def ftms_advertises_treadmill(service_data: bytes | None) -> bool | None:
-    """Prüft FTMS-Service-Data aus dem Advertising. None = keine Angabe."""
-    if not service_data or len(service_data) < 3:
-        return None
-    machine_type = service_data[1] | service_data[2] << 8
-    return bool(machine_type & FTMS_TYPE_TREADMILL)
 
 
 # --- FitShow -----------------------------------------------------------------

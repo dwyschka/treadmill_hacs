@@ -36,7 +36,16 @@ Ordner `custom_components/treadmill_ble` nach `<config>/custom_components/` kopi
 Laufband einschalten – es erscheint unter *Einstellungen → Geräte & Dienste* als gefundenes Gerät.
 Alternativ: *Integration hinzufügen → Treadmill (FTMS / FitShow)* und das Gerät aus der Liste wählen.
 
-Fahrrad-Ergometer und Rudergeräte mit FTMS werden anhand des Maschinentyps im Advertising ausgefiltert.
+Automatisch vorgeschlagen werden alle Geräte mit **FTMS** sowie FitShow-Geräte (`TF…`, `SP-TM…`).
+Wird dein Gerät nicht erkannt, zeigt *Integration hinzufügen* zusätzlich alle anderen Bluetooth-Geräte
+mit Namen in Reichweite – dort kannst du es manuell auswählen.
+
+**Wird gar nichts gefunden?**
+- Laufband darf nicht mit einer anderen App verbunden sein (Hersteller-App, Web-App im Browser) – solange es
+  verbunden ist, sendet es kein Advertising.
+- Unter *Einstellungen → Geräte & Dienste → Bluetooth → Advertisement-Monitor* prüfen, ob HA das Gerät sieht.
+- ESPHome-Proxy: `bluetooth_proxy: active: true` und `esp32_ble_tracker: scan_parameters: active: true`,
+  sonst kommt der Gerätename nicht an.
 
 ## Entitäten
 

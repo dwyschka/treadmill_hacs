@@ -3,7 +3,7 @@
     "flow_title": "{name}",
     "step": {
       "user": {
-        "description": "Select the treadmill to set up.",
+        "description": "Select the treadmill. Recognized treadmills are listed first; if yours is not recognized, pick it by its Bluetooth name.",
         "data": {
           "address": "Device"
         }
@@ -14,7 +14,7 @@
     },
     "abort": {
       "already_configured": "Device is already configured",
-      "no_devices_found": "No supported treadmill found. Make sure it is switched on and not connected to another app.",
+      "no_devices_found": "No Bluetooth device found. Make sure the treadmill is on, not connected to another app and in range of a Bluetooth adapter or active proxy.",
       "not_supported": "Device is not a supported treadmill"
     }
   },
