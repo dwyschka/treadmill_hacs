@@ -283,7 +283,7 @@ async def test_flow_user_lists_unknown_devices(hass: HomeAssistant):
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
         options = list(result["data_schema"].schema["address"].container)
-        assert options == [ADDRESS, "11:22:33:44:55:66"]  # erkanntes Laufband zuerst
+        assert options == ["__refresh__", ADDRESS, "11:22:33:44:55:66"]  # erkanntes Laufband zuerst
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_ADDRESS: "11:22:33:44:55:66"}
         )
@@ -291,12 +291,47 @@ async def test_flow_user_lists_unknown_devices(hass: HomeAssistant):
     assert result["title"] == "WalkPad X"
 
 
-async def test_flow_user_none(hass: HomeAssistant):
-    with patch(
-        "custom_components.treadmill_ble.config_flow.async_discovered_service_info", return_value=[]
+async def test_flow_user_none_then_refresh(hass: HomeAssistant):
+    """Leere Liste → Hinweis; "Neu suchen" lädt neu und findet das inzwischen sichtbare Gerät."""
+    found: list = []
+    with (
+        patch(
+            "custom_components.treadmill_ble.config_flow.async_discovered_service_info",
+            side_effect=lambda *a, **k: list(found),
+        ),
+        patch("custom_components.treadmill_ble.async_setup_entry", return_value=True),
     ):
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
-    assert result["type"] is FlowResultType.ABORT and result["reason"] == "no_devices_found"
+        assert result["type"] is FlowResultType.FORM
+        assert result["errors"] == {"base": "no_devices_found"}
+
+        found.append(service_info(uuids=()))
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_ADDRESS: "__refresh__"}
+        )
+        assert result["errors"] == {}
+        assert ADDRESS in result["data_schema"].schema["address"].container
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_ADDRESS: ADDRESS}
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_flow_user_marks_not_connectable(hass: HomeAssistant):
+    """Nur passiv gesehene Geräte erscheinen trotzdem, aber gekennzeichnet."""
+    with (
+        patch(
+            "custom_components.treadmill_ble.config_flow.async_discovered_service_info",
+            return_value=[service_info(uuids=())],
+        ) as discovered,
+        patch(
+            "custom_components.treadmill_ble.config_flow.async_ble_device_from_address",
+            return_value=None,
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    assert discovered.call_args.kwargs["connectable"] is False
+    assert "nicht verbindbar" in result["data_schema"].schema["address"].container[ADDRESS]
 
 
 async def test_options_flow(hass: HomeAssistant):

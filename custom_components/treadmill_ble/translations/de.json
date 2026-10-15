@@ -3,7 +3,7 @@
     "flow_title": "{name}",
     "step": {
       "user": {
-        "description": "Wähle das Laufband aus. Erkannte Laufbänder stehen oben; wird deins nicht erkannt, wähle es anhand des Bluetooth-Namens aus der Liste.",
+        "description": "Wähle das Laufband aus. Erkannte Laufbänder stehen oben, danach alle anderen Bluetooth-Geräte mit Namen. „↻ Neu suchen“ lädt die Liste neu. Geräte mit „nicht verbindbar“ sieht Home Assistant nur passiv – prüfe Adapter bzw. Proxy (aktives Scannen).",
         "data": {
           "address": "Gerät"
         }
@@ -14,8 +14,10 @@
     },
     "abort": {
       "already_configured": "Gerät ist bereits eingerichtet",
-      "no_devices_found": "Kein Bluetooth-Gerät gefunden. Ist das Laufband eingeschaltet, nicht mit einer anderen App verbunden und in Reichweite eines Bluetooth-Adapters oder aktiven Proxys?",
       "not_supported": "Gerät ist kein unterstütztes Laufband"
+    },
+    "error": {
+      "no_devices_found": "Kein Bluetooth-Gerät gefunden. Ist das Laufband eingeschaltet, nicht mit einer anderen App verbunden und in Reichweite eines Bluetooth-Adapters oder aktiven Proxys?"
     }
   },
   "options": {

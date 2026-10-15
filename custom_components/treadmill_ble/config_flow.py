@@ -8,6 +8,7 @@ import voluptuous as vol
 
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
+    async_ble_device_from_address,
     async_discovered_service_info,
 )
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
@@ -33,6 +34,9 @@ def is_supported(info: BluetoothServiceInfoBleak) -> bool:
     if any(uuid in info.service_uuids for uuid in FITSHOW_SERVICES):
         return True
     return (info.name or "").upper().startswith(FITSHOW_NAME_PREFIXES)
+
+
+REFRESH = "__refresh__"
 
 
 def _title(info: BluetoothServiceInfoBleak) -> str:
@@ -70,7 +74,7 @@ class TreadmillConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        if user_input is not None:
+        if user_input is not None and user_input[CONF_ADDRESS] != REFRESH:
             address = user_input[CONF_ADDRESS]
             await self.async_set_unique_id(address, raise_on_progress=False)
             self._abort_if_unique_id_configured()
@@ -78,29 +82,36 @@ class TreadmillConfigFlow(ConfigFlow, domain=DOMAIN):
                 title=_title(self._discovered[address]), data={CONF_ADDRESS: address}
             )
 
-        # Erkannte Laufbänder zuerst, danach alle übrigen verbindbaren Geräte mit Namen –
-        # manche Walking Pads zeigen FTMS/FitShow erst nach dem Verbinden.
+        # Liste bei jedem Aufruf (auch über "Neu suchen") frisch aufbauen.
+        # Erkannte Laufbänder zuerst, danach alle übrigen Geräte mit Namen – manche Walking Pads
+        # zeigen FTMS/FitShow erst nach dem Verbinden. Auch nicht verbindbare Geräte werden
+        # angezeigt (z. B. nur über einen passiven Proxy gesehen), damit man sie überhaupt findet.
         configured = self._async_current_ids(include_ignore=False)
+        self._discovered.clear()
         supported: dict[str, str] = {}
         others: dict[str, str] = {}
-        for info in async_discovered_service_info(self.hass, connectable=True):
+        for info in async_discovered_service_info(self.hass, connectable=False):
             if info.address in configured:
                 continue
+            label = f"{_title(info)} ({info.address})"
+            if async_ble_device_from_address(self.hass, info.address, connectable=True) is None:
+                label += " – nicht verbindbar"
             if is_supported(info):
-                supported[info.address] = f"{_title(info)} ({info.address})"
+                supported[info.address] = label
             elif info.name and info.name != info.address.replace(":", "-"):
-                others[info.address] = f"{info.name} ({info.address}) – nicht erkannt"
+                others[info.address] = f"{label} – nicht erkannt"
             else:
                 continue
             self._discovered[info.address] = info
 
-        if not self._discovered:
-            return self.async_abort(reason="no_devices_found")
-
         others = dict(sorted(others.items(), key=lambda item: item[1].lower()))
+        options = {REFRESH: "↻ Neu suchen"} | supported | others
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({vol.Required(CONF_ADDRESS): vol.In(supported | others)}),
+            data_schema=vol.Schema(
+                {vol.Required(CONF_ADDRESS, default=next(iter(supported), REFRESH)): vol.In(options)}
+            ),
+            errors={} if self._discovered else {"base": "no_devices_found"},
         )
 
     @staticmethod
