@@ -1,0 +1,111 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Select the treadmill to set up.",
+        "data": {
+          "address": "Device"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Do you want to set up {name}?"
+      }
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "no_devices_found": "No supported treadmill found. Make sure it is switched on and not connected to another app.",
+      "not_supported": "Device is not a supported treadmill"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "stride_length": "Stride length",
+          "weight": "Body weight"
+        },
+        "data_description": {
+          "stride_length": "Used to estimate steps when the treadmill does not report them.",
+          "weight": "Sent to FitShow treadmills as user profile."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "speed": {
+        "name": "Speed"
+      },
+      "avg_speed": {
+        "name": "Average speed"
+      },
+      "distance": {
+        "name": "Distance"
+      },
+      "elapsed_time": {
+        "name": "Elapsed time"
+      },
+      "incline": {
+        "name": "Incline"
+      },
+      "energy": {
+        "name": "Calories"
+      },
+      "heart_rate": {
+        "name": "Heart rate"
+      },
+      "steps": {
+        "name": "Steps",
+        "state_attributes": {
+          "source": {
+            "name": "Source",
+            "state": {
+              "treadmill": "Treadmill",
+              "cadence": "Cadence sensor",
+              "estimated": "Estimated"
+            }
+          }
+        }
+      },
+      "cadence": {
+        "name": "Cadence"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "calibrating": "Calibrating",
+          "error": "Error",
+          "idle": "Idle",
+          "paused": "Paused",
+          "running": "Running",
+          "safety_key": "Safety key missing",
+          "starting": "Starting",
+          "stopped": "Stopped",
+          "unknown": "Unknown"
+        }
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Start"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "stop": {
+        "name": "Stop"
+      }
+    },
+    "number": {
+      "target_speed": {
+        "name": "Target speed"
+      }
+    },
+    "switch": {
+      "connection": {
+        "name": "Bluetooth connection"
+      }
+    }
+  }
+}

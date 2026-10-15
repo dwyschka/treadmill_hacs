@@ -1,0 +1,111 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Wähle das Laufband aus.",
+        "data": {
+          "address": "Gerät"
+        }
+      },
+      "bluetooth_confirm": {
+        "description": "Möchtest du {name} einrichten?"
+      }
+    },
+    "abort": {
+      "already_configured": "Gerät ist bereits eingerichtet",
+      "no_devices_found": "Kein unterstütztes Laufband gefunden. Ist es eingeschaltet und nicht mit einer anderen App verbunden?",
+      "not_supported": "Gerät ist kein unterstütztes Laufband"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "stride_length": "Schrittlänge",
+          "weight": "Körpergewicht"
+        },
+        "data_description": {
+          "stride_length": "Wird zur Schätzung der Schritte genutzt, wenn das Laufband keine liefert.",
+          "weight": "Wird an FitShow-Laufbänder als Nutzerprofil übertragen."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "speed": {
+        "name": "Geschwindigkeit"
+      },
+      "avg_speed": {
+        "name": "Durchschnittsgeschwindigkeit"
+      },
+      "distance": {
+        "name": "Distanz"
+      },
+      "elapsed_time": {
+        "name": "Trainingszeit"
+      },
+      "incline": {
+        "name": "Steigung"
+      },
+      "energy": {
+        "name": "Kalorien"
+      },
+      "heart_rate": {
+        "name": "Herzfrequenz"
+      },
+      "steps": {
+        "name": "Schritte",
+        "state_attributes": {
+          "source": {
+            "name": "Quelle",
+            "state": {
+              "treadmill": "Laufband",
+              "cadence": "Schrittfrequenz",
+              "estimated": "Geschätzt"
+            }
+          }
+        }
+      },
+      "cadence": {
+        "name": "Schrittfrequenz"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "calibrating": "Kalibrierung",
+          "error": "Fehler",
+          "idle": "Bereit",
+          "paused": "Pausiert",
+          "running": "Läuft",
+          "safety_key": "Sicherheitsschlüssel fehlt",
+          "starting": "Startet",
+          "stopped": "Gestoppt",
+          "unknown": "Unbekannt"
+        }
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Start"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "stop": {
+        "name": "Stopp"
+      }
+    },
+    "number": {
+      "target_speed": {
+        "name": "Zielgeschwindigkeit"
+      }
+    },
+    "switch": {
+      "connection": {
+        "name": "Bluetooth-Verbindung"
+      }
+    }
+  }
+}

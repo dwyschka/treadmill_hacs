@@ -1,0 +1,11 @@
+pytest-homeassistant-custom-component
+# Abhängigkeiten der HA-Bluetooth-Komponente (nicht in pytest-homeassistant-custom-component enthalten)
+bleak
+bleak-retry-connector
+bluetooth-adapters
+bluetooth-auto-recovery
+bluetooth-data-tools
+dbus-fast
+habluetooth
+aiousbwatcher
+pyserial

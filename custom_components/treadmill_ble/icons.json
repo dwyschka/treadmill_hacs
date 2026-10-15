@@ -1,0 +1,66 @@
+{
+  "entity": {
+    "sensor": {
+      "speed": {
+        "default": "mdi:speedometer"
+      },
+      "avg_speed": {
+        "default": "mdi:speedometer-medium"
+      },
+      "distance": {
+        "default": "mdi:map-marker-distance"
+      },
+      "elapsed_time": {
+        "default": "mdi:timer-outline"
+      },
+      "incline": {
+        "default": "mdi:slope-uphill"
+      },
+      "energy": {
+        "default": "mdi:fire"
+      },
+      "heart_rate": {
+        "default": "mdi:heart-pulse"
+      },
+      "steps": {
+        "default": "mdi:shoe-print"
+      },
+      "cadence": {
+        "default": "mdi:metronome"
+      },
+      "status": {
+        "default": "mdi:treadmill",
+        "state": {
+          "running": "mdi:run",
+          "paused": "mdi:pause-circle",
+          "safety_key": "mdi:key-alert",
+          "error": "mdi:alert-circle"
+        }
+      }
+    },
+    "button": {
+      "start": {
+        "default": "mdi:play"
+      },
+      "pause": {
+        "default": "mdi:pause"
+      },
+      "stop": {
+        "default": "mdi:stop"
+      }
+    },
+    "number": {
+      "target_speed": {
+        "default": "mdi:speedometer"
+      }
+    },
+    "switch": {
+      "connection": {
+        "default": "mdi:bluetooth-connect",
+        "state": {
+          "off": "mdi:bluetooth-off"
+        }
+      }
+    }
+  }
+}
